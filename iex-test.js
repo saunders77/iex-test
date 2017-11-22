@@ -1,40 +1,103 @@
-/* 
- * Copyright (c) Microsoft Corporation. All rights reserved. Licensed under the MIT license.
- * See LICENSE in the project root for license information.
- */
+var fieldMapping = {
+    "last": "latestPrice",
+    "bid": "iexBidPrice",
+    "ask": "iexAskPrice",
+    "volume": "iexVolume",
+    "change": "change"
+};
+
+function httpGetAsync(theUrl, callback)
+{
+    var xmlHttp = new XMLHttpRequest();
+    xmlHttp.onreadystatechange = function() { 
+    if (xmlHttp.readyState == 4 && xmlHttp.status == 200)
+        callback(xmlHttp.responseText);
+    }
+    xmlHttp.open("GET", theUrl, true);
+    xmlHttp.send(null);
+}
 
 Office.initialize = function(reason){
     // Define the Contoso prefix.
     Excel.Script.CustomFunctions = {};
     Excel.Script.CustomFunctions["STOCKS"] = {};
 
-    // add42 is an example of a synchronous function.
-    function add42 (a, b) {
-        return a + b + 42;
-    }    
-    Excel.Script.CustomFunctions["STOCKS"]["ADD42"] = {
-        call: add42,
-        description: "Finds the sum of two numbers and 42.",
-        helpUrl: "https://www.contoso.com/help.html",
+    var stocks = {};
+    var fields = {};
+    var sessionActive = false;
+
+    function getPrices(){
+        var queryString = "https://api.iextrading.com/1.0/stock/market/batch?symbols=";
+        var fieldString = "";
+        for(ticker in Object.keys(stocks)){
+            queryString += encodeURIComponent(ticker) + "%2C"; // comma
+        }
+        queryString.slice(0,-1); // remove last comma
+        queryString += "&types=quote&filter=";
+        for(field in Object.keys(fields)){
+            fieldString += fieldMapping[field] + "%2C";
+        }
+        queryString.slice(0, -1);
+
+        // call the service
+        httpGetAsync(queryString, function(data){
+            var result = JSON.parse(data);
+            for(ticker in Object.keys(stocks)){
+                for(field in Object.keys(stocks[ticker])){
+                    for(callback in stocks[ticker][field]){
+                        callback(result[ticker]["quote"][fieldMapping[field]]);
+                    }
+                }
+            }
+        });
+
+        setTimeout(getPrices,500);
+    }
+
+    function quote (ticker, field, setResult) {
+        // add the callback to memory
+        if(!stocks[ticker]){
+            stocks[ticker] = {};
+        }    
+        if(!stocks[ticker][field]){
+            stocks[ticker][field] = [];
+        }
+        stocks[ticker][field].push(setResult);
+        if(!fields[field]){
+            fields[field] = true;
+        }
+
+        // start getting prices
+        // assumes the ticker is valid
+        if(!sessionActive){
+            sessionActive = true;
+            getPrices();
+        }
+    }   
+
+    Excel.Script.CustomFunctions["STOCKS"]["QUOTE"] = {
+        call: quote,
+        description: "Get real-time market data from the IEX exchange.",
+        helpUrl: "https://www.michael-saunders.com/help.html",
         result: {
             resultType: Excel.CustomFunctionValueType.number,
             resultDimensionality: Excel.CustomFunctionDimensionality.scalar,
         },
         parameters: [
             {
-                name: "num 1",
-                description: "The first number",
-                valueType: Excel.CustomFunctionValueType.number,
+                name: "The stock ticker (eg. 'MSFT')",
+                description: "The stock ticker (eg. 'MSFT')",
+                valueType: Excel.CustomFunctionValueType.string,
                 valueDimensionality: Excel.CustomFunctionDimensionality.scalar,
             },
             {
-                name: "num 2",
-                description: "The second number",
-                valueType: Excel.CustomFunctionValueType.number,
+                name: "The field to query ('last', 'change', 'bid', 'ask', or 'volume')",
+                description: "The field to query ('last', 'change', 'bid', 'ask', or 'volume')",
+                valueType: Excel.CustomFunctionValueType.string,
                 valueDimensionality: Excel.CustomFunctionDimensionality.scalar,
             }
         ],
-        options:{ batch: false, stream: false }
+        options:{ batch: false, stream: true }
     };
     
     
@@ -47,24 +110,7 @@ Office.initialize = function(reason){
             setResult(result);
         }, 1000);
     }
-    Excel.Script.CustomFunctions["STOCKS"]["INCREMENTVALUE"] = {
-        call: incrementValue,
-        description: "Increments a counter that starts at zero.",
-        helpUrl: "https://www.contoso.com/help.html",
-        result: {
-            resultType: Excel.CustomFunctionValueType.number,
-            resultDimensionality: Excel.CustomFunctionDimensionality.scalar,
-        },
-        parameters: [
-            {
-                name: "period",
-                description: "The time between updates, in milliseconds.",
-                valueType: Excel.CustomFunctionValueType.number,
-                valueDimensionality: Excel.CustomFunctionDimensionality.scalar,
-            },
-        ],
-        options: { batch: false,  stream: true }
-    };
+    
     
     // The refreshTemperature and streamTemperature functions use global variables to save & read state, while streaming data.
     var savedTemperatures = {};
