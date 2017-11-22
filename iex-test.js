@@ -6,7 +6,7 @@
 Office.initialize = function(reason){
     // Define the Contoso prefix.
     Excel.Script.CustomFunctions = {};
-    Excel.Script.CustomFunctions["CONTOSO"] = {};
+    Excel.Script.CustomFunctions["STOCKS"] = {};
 
     // add42 is an example of a synchronous function.
     function add42 (a, b) {
