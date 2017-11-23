@@ -43,8 +43,6 @@ Office.initialize = function(reason){
         }
         queryString = queryString.slice(0, -3);
 
-        stocks["T"]["last"][0](queryString);
-
         // call the service
         httpGetAsync(queryString, function(data){
             var result = JSON.parse(data);
