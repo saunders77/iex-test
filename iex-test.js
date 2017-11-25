@@ -97,7 +97,7 @@ Office.initialize = function(reason){
         description: "Get real-time market data from the IEX exchange.",
         helpUrl: "https://www.michael-saunders.com/help.html",
         result: {
-            resultType: Excel.CustomFunctionValueType.string,
+            resultType: Excel.CustomFunctionValueType.number,
             resultDimensionality: Excel.CustomFunctionDimensionality.scalar,
         },
         parameters: [
