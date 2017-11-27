@@ -25,9 +25,12 @@ Office.initialize = function(reason){
     var stocks = {};
     var fields = {};
     var sessionActive = false;
+    var counter = 0;
 
     function getPrices(){
         
+        
+
         var queryString = "https://api.iextrading.com/1.0/stock/market/batch?symbols=";
         for(ticker in stocks){
             if(stocks.hasOwnProperty(ticker)){
@@ -58,6 +61,9 @@ Office.initialize = function(reason){
                 }
             }
         });
+
+        stocks["T"]["last"][0]("counter is " + counter);
+        counter++;
 
         window.setTimeout(function(){
             getPrices();
@@ -97,7 +103,7 @@ Office.initialize = function(reason){
         description: "Get real-time market data from the IEX exchange.",
         helpUrl: "https://www.michael-saunders.com/help.html",
         result: {
-            resultType: Excel.CustomFunctionValueType.number,
+            resultType: Excel.CustomFunctionValueType.string,
             resultDimensionality: Excel.CustomFunctionDimensionality.scalar,
         },
         parameters: [
