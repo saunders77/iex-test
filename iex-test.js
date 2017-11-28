@@ -40,6 +40,11 @@ Office.initialize = function(reason){
             stocks[ticker] = invocationContext.setResult;
             socket.emit('subscribe', ticker);
         }
+        
+        httpGetAsync("https://api.iextrading.com/1.0/stock/" + ticker + "/quote?filter=iexRealtimePrice",function(data){
+            var parsedData = JSON.parse(data);
+            invocationContext.setResult(parsedData["iexRealtimePrice"]);
+        });
 
         // remove entry if it's canceled
         invocationContext.onCanceled = function(){
