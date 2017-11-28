@@ -21,74 +21,24 @@ Office.initialize = function(reason){
     // Define the Contoso prefix.
     Excel.Script.CustomFunctions = {};
     Excel.Script.CustomFunctions["STOCKS"] = {};
-
+    
     var stocks = {};
+    var socket = io('https://ws-api.iextrading.com/1.0/tops');
+    socket.on('connect',function(){  });
+    socket.on('message', function(message){
+        var parsedMessage = JSON.parse(message);
+        stocks[parsedMessage["symbol"]](parsedMessage["lastSalePrice"]);
+    });
+
+    
     var fields = {};
-    var sessionActive = false;
-    var counter = 0;
-
-    function getPrices(){
-        
-        
-
-        var queryString = "https://api.iextrading.com/1.0/stock/market/batch?symbols=";
-        for(ticker in stocks){
-            if(stocks.hasOwnProperty(ticker)){
-                queryString += encodeURIComponent(ticker) + "%2C"; // comma
-            }
-        }
-        queryString = queryString.slice(0,-3); // remove last comma
-        queryString += "&types=quote&filter=";
-        for(field in fields){
-            if(fields.hasOwnProperty(field)){
-                queryString += fieldMapping[field] + "%2C";
-            }
-        }
-        queryString = queryString.slice(0, -3);
-
-        // call the service
-        httpGetAsync(queryString, function(data){
-            var result = JSON.parse(data);
-            for(ticker in stocks){
-                if(stocks.hasOwnProperty(ticker)){
-                    for(field in stocks[ticker]){
-                        if(stocks[ticker].hasOwnProperty(field)){
-                            for(var i = 0; i < stocks[ticker][field].length;i++){
-                                stocks[ticker][field][i](result[ticker]["quote"][fieldMapping[field]]);
-                            }
-                        }
-                    }
-                }
-            }
-        });
-
-        stocks["T"]["last"][0]("counter is " + counter);
-        counter++;
-
-        window.setTimeout(function(){
-            getPrices();
-        },500);
-    }
 
     function quote (ticker, field, invocationContext) {
         // add the callback to memory
         
         if(!stocks[ticker]){
-            stocks[ticker] = {};
-        }    
-        if(!stocks[ticker][field]){
-            stocks[ticker][field] = [];
-        }
-        stocks[ticker][field].push(invocationContext.setResult);
-        if(!fields[field]){
-            fields[field] = true;
-        }
-
-        // start getting prices
-        // assumes the ticker is valid
-        if(!sessionActive){
-            sessionActive = true;
-            getPrices();
+            stocks[ticker] = invocationContext.setResult;
+            socket.emit('subscribe', ticker);
         }
 
         // remove entry if it's canceled
@@ -103,7 +53,7 @@ Office.initialize = function(reason){
         description: "Get real-time market data from the IEX exchange.",
         helpUrl: "https://www.michael-saunders.com/help.html",
         result: {
-            resultType: Excel.CustomFunctionValueType.string,
+            resultType: Excel.CustomFunctionValueType.number,
             resultDimensionality: Excel.CustomFunctionDimensionality.scalar,
         },
         parameters: [
