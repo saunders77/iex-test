@@ -149,6 +149,220 @@ Office.initialize = function(reason){
         options:{ batch: false, stream: true }
     };
 */
+
+    Excel.Promise = function (setResultFunction){
+        return new OfficeExtension.Promise(function(resolve, reject){
+            setResultFunction(resolve, reject);
+        });
+    }  
+    
+    // helper code for getting temperature
+    var temps = {};
+    temps["boiler"] = 104.3;
+    temps["mixer"] = 44.0;
+    temps["furnace"] = 586.9;
+    furnaceHistory = [];
+    function startTime(){
+        temps["boiler"] += Math.pow(Math.random() - 0.45, 3) * 2;
+        temps["mixer"] += Math.pow(Math.random() - 0.55, 3) * 2;
+        temps["furnace"] += Math.pow(Math.random() - 0.40, 3) * 2;
+        furnaceHistory.push([temps["furnace"]]);
+        if(furnaceHistory.length > 50){
+            furnaceHistory.shift();
+        }
+        setTimeout(startTime, 500);
+    }
+    startTime();
+    function getTempFromServer(thermometerID, callback){
+        setTimeout(function(){
+            var data = {};
+            data.temperature = temps[thermometerID].toFixed(1);
+            callback(data);
+        }, 200);
+    }
+
+    // demo functions
+
+    function addTo42(num){
+        return Excel.Promise(function(setResult, setError){
+            setTimeout(function(){
+                setResult(num + 42);
+            }, 1000);
+        });
+    }
+    
+    function addTo42Fast(num) {
+        return num + 42;
+    }
+
+    function getTemperature(thermometerID){ 
+        return Excel.Promise(function(setResult, setError){ 
+            getTempFromServer(thermometerID, function(data){ 
+                setResult(data.temperature); 
+            }); 
+        }); 
+    }
+
+    function streamTemperature(thermometerID, interval, call){     
+        if(thermometerID == "furnace"){
+            temps["furnace"] = 630.2;
+        }
+        function getNextTemperature(){ 
+            getTempFromServer(thermometerID, function(data){ 
+                call.setResult(data.temperature); 
+            }); 
+            setTimeout(getNextTemperature, interval); 
+        } 
+        getNextTemperature(); 
+    } 
+
+    function secondHighestTemp(temperatures){ 
+        var highest = -273, secondHighest = -273;
+        for(var i = 0; i < temperatures.length;i++){
+            for(var j = 0; j < temperatures[i].length;j++){
+                if(temperatures[i][j] >= highest){
+                    secondHighest = highest;
+                    highest = temperatures[i][j];
+                }
+                else if(temperatures[i][j] >= secondHighest){
+                    secondHighest = temperatures[i][j];
+                }
+            }
+        }
+        return secondHighest;
+    }
+
+    function trackTemperature(thermometerID, call){
+        var output = [];
+        
+        for(var i = 0; i < 50; i++) output.push([0]);  
+        if(thermometerID == "furnace"){
+            output = furnaceHistory;
+        } 
+        function recordNextTemperature(){
+            getTempFromServer(thermometerID, function(data){
+                output.push([data.temperature]);
+                output.shift();
+                call.setResult(output);
+            });
+            setTimeout(recordNextTemperature, 500);
+        }
+        recordNextTemperature();
+    } 
+
+    Excel.Script.CustomFunctions["CFACTORY"] = {};
+    Excel.Script.CustomFunctions["CFACTORY"]["ADDTO42"] = {
+        call: addTo42Fast,
+        description: "Returns the sum of a number and 42, fast",
+        helpUrl: "https://example.com/help.html",
+        result: {
+            resultType: Excel.CustomFunctionValueType.number,
+            resultDimensionality: Excel.CustomFunctionDimensionality.scalar,
+        },
+        parameters: [
+            {
+                name: "num",
+                description: "The number be added",
+                valueType: Excel.CustomFunctionValueType.number,
+                valueDimensionality: Excel.CustomFunctionDimensionality.scalar,
+            },
+        ],
+        options: {
+            batch: false,
+            stream: false,
+        }
+    };
+    Excel.Script.CustomFunctions["CFACTORY"]["GETTEMPERATURE"] = {
+        call: getTemperature,
+        description: "Returns the temperature of the boiler, mixer, or furnace",
+        helpUrl: "https://example.com/help.html",
+        result: {
+            resultType: Excel.CustomFunctionValueType.number,
+            resultDimensionality: Excel.CustomFunctionDimensionality.scalar,
+        },
+        parameters: [
+            {
+                name: "thermometer ID",
+                description: "The thermometer to be measured",
+                valueType: Excel.CustomFunctionValueType.string,
+                valueDimensionality: Excel.CustomFunctionDimensionality.scalar,
+            },
+        ],
+        options: {
+            batch: false,
+            stream: false,
+        }
+    };
+    Excel.Script.CustomFunctions["CFACTORY"]["STREAMTEMPERATURE"] = {
+        call: streamTemperature,
+        description: "Streams the temperature of the boiler, mixer, or furnace",
+        helpUrl: "https://example.com/help.html",
+        result: {
+            resultType: Excel.CustomFunctionValueType.number,
+            resultDimensionality: Excel.CustomFunctionDimensionality.scalar,
+        },
+        parameters: [
+            {
+                name: "thermometer ID",
+                description: "The thermometer to be measured",
+                valueType: Excel.CustomFunctionValueType.string,
+                valueDimensionality: Excel.CustomFunctionDimensionality.scalar,
+            },
+            {
+                name: "interval",
+                description: "The time between updates",
+                valueType: Excel.CustomFunctionValueType.number,
+                valueDimensionality: Excel.CustomFunctionDimensionality.scalar,
+            },
+        ],
+        options: {
+            batch: false,
+            stream: true,
+        }
+    };
+    Excel.Script.CustomFunctions["CFACTORY"]["SECONDHIGHESTTEMP"] = {
+        call: secondHighestTemp,
+        description: "Returns the second highest from a range of temperatures",
+        helpUrl: "https://example.com/help.html",
+        result: {
+            resultType: Excel.CustomFunctionValueType.number,
+            resultDimensionality: Excel.CustomFunctionDimensionality.scalar,
+        },
+        parameters: [
+            {
+                name: "temps",
+                description: "the temperatures to be compared",
+                valueType: Excel.CustomFunctionValueType.number,
+                valueDimensionality: Excel.CustomFunctionDimensionality.matrix,
+            },
+        ],
+        options: {
+            batch: false,
+            stream: false,
+        }
+    };
+    Excel.Script.CustomFunctions["CFACTORY"]["TRACKTEMPERATURE"] = {
+        call: trackTemperature,
+        description: "Streams 25 seconds of temperature history",
+        helpUrl: "https://example.com/help.html",
+        result: {
+            resultType: Excel.CustomFunctionValueType.number,
+            resultDimensionality: Excel.CustomFunctionDimensionality.matrix,
+        },
+        parameters: [
+            {
+                name: "thermometer ID",
+                description: "The thermometer to be measured",
+                valueType: Excel.CustomFunctionValueType.string,
+                valueDimensionality: Excel.CustomFunctionDimensionality.scalar,
+            },
+        ],
+        options: {
+            batch: false,
+            stream: true,
+        }
+    };
+
     // Register all the custom functions previously defined in Excel.
     Excel.run(function (context) {        
         context.workbook.customFunctions.addAll();
